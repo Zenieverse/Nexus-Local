@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Send, User, Cpu, Bot, Sparkles, Zap, Brain, Globe, Search, RefreshCcw } from 'lucide-react';
 import { auth } from '../lib/firebase';
-import { ChatService } from '../lib/services';
+import { ChatService, MemoryService } from '../lib/services';
+import ReactMarkdown from 'react-markdown';
 import { cn } from '../lib/utils';
 import { useSettings } from '../lib/context/SettingsContext';
 
@@ -16,10 +17,32 @@ const AGENTS = [
 export default function Agents({ initialQuery, onClearQuery }: { initialQuery?: string, onClearQuery?: () => void }) {
   const { settings } = useSettings();
   const [selectedAgent, setSelectedAgent] = useState(AGENTS[0]);
+  const [conversationId, setConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<any[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!auth.currentUser) return;
+    ChatService.getLatestConversationForAgent(auth.currentUser.uid, selectedAgent.id)
+      .then(convo => {
+        if (convo) {
+          setConversationId(convo.id);
+        } else {
+          setConversationId(null);
+          setMessages([]);
+        }
+      });
+  }, [selectedAgent]);
+
+  useEffect(() => {
+    if (!conversationId) return;
+    const unsubscribe = ChatService.subscribeToMessages(conversationId, (data) => {
+      setMessages(data);
+    });
+    return unsubscribe;
+  }, [conversationId]);
 
   useEffect(() => {
     if (initialQuery && initialQuery.trim()) {
@@ -32,7 +55,7 @@ export default function Agents({ initialQuery, onClearQuery }: { initialQuery?: 
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages]);
+  }, [messages, loading]);
 
   const handleSend = async (overrideInput?: string) => {
     const messageToSend = overrideInput || input;
@@ -41,10 +64,24 @@ export default function Agents({ initialQuery, onClearQuery }: { initialQuery?: 
     const userMessage = messageToSend;
     if (!overrideInput) setInput('');
     
-    setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
     setLoading(true);
 
     try {
+      let currentId = conversationId;
+      if (!currentId) {
+        const newConvo = await ChatService.createConversation(auth.currentUser.uid, userMessage.substring(0, 40), selectedAgent.id);
+        if (newConvo) {
+          currentId = newConvo.id;
+          setConversationId(currentId);
+        }
+      }
+
+      if (currentId) {
+        await ChatService.addMessage(currentId, 'user', userMessage);
+        // Also log to timeline
+        await MemoryService.addMemory(auth.currentUser.uid, userMessage, 'conversation', { agentId: selectedAgent.id });
+      }
+
       const response = await fetch('/api/ai/reason', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -52,16 +89,35 @@ export default function Agents({ initialQuery, onClearQuery }: { initialQuery?: 
           prompt: userMessage,
           agent: selectedAgent.id,
           model: "gemini-3.1-pro-preview",
-          settings: settings
+          settings: settings,
+          context: messages.slice(-5).map(m => `${m.role}: ${m.content}`).join('\n')
         })
       });
       const data = await response.json();
-      setMessages(prev => [...prev, { role: 'assistant', content: data.text }]);
+      
+      if (currentId) {
+        await ChatService.addMessage(currentId, 'assistant', data.text);
+        await MemoryService.addMemory(auth.currentUser.uid, data.text, 'conversation', { agentId: selectedAgent.id, role: 'assistant' });
+      } else {
+        // Fallback for UI if Firebase fails
+        setMessages(prev => [...prev, { role: 'assistant', content: data.text }]);
+      }
     } catch (e) {
       console.error(e);
-      setMessages(prev => [...prev, { role: 'assistant', content: "Error communicating with local core." }]);
+      if (!conversationId) {
+        setMessages(prev => [...prev, { role: 'assistant', content: "Error communicating with local core." }]);
+      }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleNewChat = async () => {
+    if (!auth.currentUser) return;
+    const newConvo = await ChatService.createConversation(auth.currentUser.uid, "New Conversation", selectedAgent.id);
+    if (newConvo) {
+      setConversationId(newConvo.id);
+      setMessages([]);
     }
   };
 
@@ -120,7 +176,10 @@ export default function Agents({ initialQuery, onClearQuery }: { initialQuery?: 
                </div>
              </div>
           </div>
-          <button className="p-2 hover:bg-white/5 rounded-lg text-muted-foreground transition-colors">
+          <button 
+            onClick={handleNewChat}
+            className="p-2 hover:bg-white/5 rounded-lg text-muted-foreground transition-colors"
+          >
             <RefreshCcw size={16} />
           </button>
         </div>
@@ -155,10 +214,10 @@ export default function Agents({ initialQuery, onClearQuery }: { initialQuery?: 
                   {m.role === 'user' ? <User size={16} /> : <Cpu size={16} />}
                 </div>
                 <div className={cn(
-                  "max-w-[80%] p-4 rounded-2xl text-sm leading-relaxed",
-                  m.role === 'user' ? "bg-white/5 border border-white/5 italic" : "bg-white/10 border border-white/10"
+                  "max-w-[80%] p-4 rounded-2xl text-sm leading-relaxed markdown-body",
+                  m.role === 'user' ? "bg-white/5 border border-white/10 italic text-zinc-300" : "bg-white/10 border border-white/20 text-white"
                 )}>
-                   {m.content}
+                   <ReactMarkdown>{m.content}</ReactMarkdown>
                 </div>
               </motion.div>
             ))

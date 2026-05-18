@@ -97,16 +97,34 @@ export const MemoryService = {
 };
 
 export const ChatService = {
-  async createConversation(userId: string, title: string) {
+  async createConversation(userId: string, title: string, agentId: string = 'nexus') {
     const path = 'conversations';
     try {
       return await addDoc(collection(db, path), {
         userId,
         title,
+        agentId,
         updatedAt: serverTimestamp(),
       });
     } catch (e) {
       handleFirestoreError(e, OperationType.CREATE, path);
+    }
+  },
+
+  async getLatestConversationForAgent(userId: string, agentId: string) {
+    const path = 'conversations';
+    const q = query(
+      collection(db, path),
+      where('userId', '==', userId),
+      where('agentId', '==', agentId),
+      orderBy('updatedAt', 'desc'),
+      limit(1)
+    );
+    try {
+      const snapshot = await getDocs(q);
+      return snapshot.empty ? null : { id: snapshot.docs[0].id, ...snapshot.docs[0].data() };
+    } catch (e) {
+      handleFirestoreError(e, OperationType.GET, path);
     }
   },
 

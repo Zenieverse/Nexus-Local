@@ -7,6 +7,39 @@
   --font-display: "Space Grotesk", sans-serif;
 }
 
+@layer base {
+  .markdown-body {
+    @apply space-y-4;
+  }
+  .markdown-body p {
+    @apply leading-relaxed;
+  }
+  .markdown-body h1, .markdown-body h2, .markdown-body h3 {
+    @apply font-bold mt-6 mb-2 text-white;
+  }
+  .markdown-body ul, .markdown-body ol {
+    @apply pl-6 space-y-1 my-4;
+  }
+  .markdown-body ul {
+    @apply list-disc;
+  }
+  .markdown-body ol {
+    @apply list-decimal;
+  }
+  .markdown-body code {
+    @apply bg-white/10 px-1.5 py-0.5 rounded font-mono text-xs text-white;
+  }
+  .markdown-body pre {
+    @apply bg-black/40 border border-white/5 rounded-xl p-4 my-4 overflow-x-auto;
+  }
+  .markdown-body pre code {
+    @apply bg-transparent p-0;
+  }
+  .markdown-body blockquote {
+    @apply border-l-2 border-white/20 pl-4 italic text-zinc-400;
+  }
+}
+
 :root {
   --background: #09090b;
   --foreground: #fafafa;
