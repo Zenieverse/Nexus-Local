@@ -1,0 +1,53 @@
+{
+  "entities": {
+    "Memory": {
+      "title": "Memory",
+      "description": "A semantic unit of information stored in the NEXUS system.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "content": { "type": "string" },
+        "type": { "type": "string", "enum": ["conversation", "file", "screenshot", "voice", "code"] },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "userId": { "type": "string" },
+        "metadata": { "type": "object" }
+      },
+      "required": ["content", "type", "timestamp", "userId"]
+    },
+    "Conversation": {
+      "title": "Conversation",
+      "description": "A thread of messages between the user and NEXUS.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "lastMessage": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "userId": { "type": "string" }
+      },
+      "required": ["userId", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/memories/{memoryId}": {
+      "schema": "Memory",
+      "description": "Collection of semantic memories."
+    },
+    "/conversations/{conversationId}": {
+      "schema": "Conversation",
+      "description": "Chat transitions and history threads."
+    },
+    "/conversations/{conversationId}/messages/{messageId}": {
+      "schema": {
+        "type": "object",
+        "properties": {
+          "role": { "type": "string", "enum": ["user", "assistant"] },
+          "content": { "type": "string" },
+          "timestamp": { "type": "string", "format": "date-time" }
+        }
+      },
+      "description": "Individual messages in a thread."
+    }
+  }
+}
