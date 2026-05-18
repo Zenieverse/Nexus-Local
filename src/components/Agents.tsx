@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Send, User, Cpu, Bot, Sparkles, Zap, Brain, Globe, Search, RefreshCcw } from 'lucide-react';
+import { Send, User, Cpu, Bot, Sparkles, Zap, Brain, Globe, Search, RefreshCcw, Shield } from 'lucide-react';
 import { auth } from '../lib/firebase';
 import { ChatService, MemoryService } from '../lib/services';
 import ReactMarkdown from 'react-markdown';
