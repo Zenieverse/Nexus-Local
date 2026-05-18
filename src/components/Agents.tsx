@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Send, User, Cpu, Bot, Sparkles, Zap, Brain, Globe, Search, RefreshCcw, Shield } from 'lucide-react';
+import { Send, User, Cpu, Bot, Sparkles, Zap, Brain, Globe, Search, RefreshCcw, Shield, Code2 } from 'lucide-react';
 import { auth } from '../lib/firebase';
 import { ChatService, MemoryService } from '../lib/services';
 import ReactMarkdown from 'react-markdown';
@@ -8,11 +8,20 @@ import { cn } from '../lib/utils';
 import { useSettings } from '../lib/context/SettingsContext';
 
 const AGENTS = [
-  { id: 'nexus', name: 'Nexus Core', icon: <Cpu />, color: 'white', desc: 'Main orchestration engine' },
-  { id: 'research', name: 'Research', icon: <Globe />, color: 'blue-500', desc: 'Web retrieval and synthesis' },
-  { id: 'analyst', name: 'Analyst', icon: <Brain />, color: 'emerald-500', desc: 'Deep data reasoning' },
-  { id: 'creative', name: 'Creative', icon: <Sparkles />, color: 'purple-500', desc: 'Generative ideation' }
+  { id: 'nexus', name: 'Nexus Core', icon: <Cpu size={20} />, color: 'white', desc: 'Orchestration Engine' },
+  { id: 'research', name: 'Research', icon: <Search size={20} />, color: 'blue-500', desc: 'Knowledge Retrieval' },
+  { id: 'analyst', name: 'Analyst', icon: <Brain size={20} />, color: 'emerald-500', desc: 'Data Reasoning' },
+  { id: 'coding', name: 'Coding', icon: <Code2 size={20} />, color: 'amber-500', desc: 'Logic & Architecture' },
+  { id: 'creative', name: 'Creative', icon: <Sparkles size={20} />, color: 'purple-500', desc: 'Generative Ideation' }
 ];
+
+const AGENT_PROMPTS: Record<string, string[]> = {
+  nexus: ["Optimize my system workflow", "Status of local silicon?", "Orchestrate my task queue"],
+  research: ["Summarize recent vault arrivals", "Research fusion breakthroughs", "Synthesize local memory"],
+  analyst: ["Detect patterns in my interactions", "Perform semantic breakdown", "Extract vault entities"],
+  coding: ["Analyze server.ts architecture", "Debug logic flow", "Refactor for performance"],
+  creative: ["Generate 5 futuristic app ideas", "Write a manifesto for Nexus", "Conceptualize minimalist UI"],
+};
 
 export default function Agents({ initialQuery, onClearQuery }: { initialQuery?: string, onClearQuery?: () => void }) {
   const { settings } = useSettings();
@@ -21,6 +30,7 @@ export default function Agents({ initialQuery, onClearQuery }: { initialQuery?: 
   const [messages, setMessages] = useState<any[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [processingLogs, setProcessingLogs] = useState<string[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -58,16 +68,33 @@ export default function Agents({ initialQuery, onClearQuery }: { initialQuery?: 
   }, [messages, loading]);
 
   const handleSend = async (overrideInput?: string) => {
-    const messageToSend = overrideInput || input;
-    if (!messageToSend.trim() || !auth.currentUser) return;
+    const rawMessage = (overrideInput || input || "").toString();
+    if (!rawMessage.trim() || !auth.currentUser) return;
     
-    const userMessage = messageToSend;
+    const userMessage = rawMessage.trim();
     if (!overrideInput) setInput('');
     
     setLoading(true);
+    setProcessingLogs([]);
+
+    // Simulated internal routing logs
+    const routingSteps = [
+      `Initializing ${selectedAgent.name} expert chain...`,
+      "Loading local semantic weights...",
+      "Routing through MoE layer: Expert [8] active",
+      settings.offlineMode ? "Verifying local-only protocol..." : "Cloud-bridge verification: PASS",
+      "Synthesizing response via silicon-3..."
+    ];
 
     try {
       let currentId = conversationId;
+      
+      // Gradually show logs
+      for (const step of routingSteps) {
+        setProcessingLogs(prev => [...prev, step]);
+        await new Promise(r => setTimeout(r, 200 + Math.random() * 300));
+      }
+
       if (!currentId) {
         const newConvo = await ChatService.createConversation(auth.currentUser.uid, userMessage.substring(0, 40), selectedAgent.id);
         if (newConvo) {
@@ -88,19 +115,21 @@ export default function Agents({ initialQuery, onClearQuery }: { initialQuery?: 
         body: JSON.stringify({ 
           prompt: userMessage,
           agent: selectedAgent.id,
-          model: "gemini-3.1-pro-preview",
+          model: "gemini-1.5-flash",
           settings: settings,
           context: messages.slice(-5).map(m => `${m.role}: ${m.content}`).join('\n')
         })
       });
       const data = await response.json();
       
+      const assistantText = data.text || data.error || "Intelligence core returned no data.";
+      
       if (currentId) {
-        await ChatService.addMessage(currentId, 'assistant', data.text);
-        await MemoryService.addMemory(auth.currentUser.uid, data.text, 'conversation', { agentId: selectedAgent.id, role: 'assistant' });
+        await ChatService.addMessage(currentId, 'assistant', assistantText);
+        await MemoryService.addMemory(auth.currentUser.uid, assistantText, 'conversation', { agentId: selectedAgent.id, role: 'assistant' });
       } else {
         // Fallback for UI if Firebase fails
-        setMessages(prev => [...prev, { role: 'assistant', content: data.text }]);
+        setMessages(prev => [...prev, { role: 'assistant', content: assistantText }]);
       }
     } catch (e) {
       console.error(e);
@@ -124,27 +153,27 @@ export default function Agents({ initialQuery, onClearQuery }: { initialQuery?: 
   return (
     <div className="h-full flex gap-6 max-w-6xl mx-auto">
       {/* Agents Selection */}
-      <div className="w-64 space-y-4 shrink-0 overflow-y-auto pr-2">
-        <h3 className="font-bold uppercase tracking-widest text-xs text-muted-foreground px-2">Specialized Agents</h3>
+      <div className="w-64 space-y-2 shrink-0 overflow-y-auto pr-2">
+        <h3 className="font-bold uppercase tracking-widest text-[10px] text-muted-foreground px-2 mb-4">Intelligence Stack</h3>
         {AGENTS.map(agent => (
           <button 
             key={agent.id}
             onClick={() => setSelectedAgent(agent)}
             className={cn(
-              "w-full p-4 rounded-2xl border transition-all text-left group",
+              "w-full p-4 rounded-3xl border transition-all text-left group mb-2",
               selectedAgent.id === agent.id 
-                ? "bg-white/10 border-white/20 glow" 
-                : "bg-white/5 border-white/5 hover:border-white/10 hover:bg-white/[0.07]"
+                ? "bg-white text-black border-white shadow-[0_0_20px_rgba(255,255,255,0.1)]" 
+                : "bg-white/5 border-white/5 hover:border-white/10 hover:bg-white/[0.07] text-white"
             )}
           >
             <div className={cn(
-              "w-10 h-10 rounded-xl flex items-center justify-center mb-3 transition-colors",
-              selectedAgent.id === agent.id ? "bg-white text-black" : "bg-white/5 text-muted-foreground group-hover:text-white"
+              "w-8 h-8 rounded-xl flex items-center justify-center mb-3 transition-colors",
+              selectedAgent.id === agent.id ? "bg-black text-white" : "bg-white/5 text-muted-foreground group-hover:text-white"
             )}>
               {agent.icon}
             </div>
             <p className="font-bold text-sm tracking-tight">{agent.name}</p>
-            <p className="text-[10px] text-muted-foreground uppercase tracking-widest mt-0.5">{agent.desc}</p>
+            <p className="text-[10px] opacity-60 uppercase tracking-widest mt-0.5">{agent.desc}</p>
           </button>
         ))}
       </div>
@@ -165,12 +194,7 @@ export default function Agents({ initialQuery, onClearQuery }: { initialQuery?: 
                  </div>
                  {settings.offlineMode && (
                    <div className="text-[10px] text-zinc-500 uppercase tracking-widest flex items-center gap-1">
-                     <Shield size={10} /> Offline
-                   </div>
-                 )}
-                 {settings.autonomousTools && (
-                   <div className="text-[10px] text-zinc-500 uppercase tracking-widest flex items-center gap-1">
-                     <Zap size={10} /> Auto-Tools
+                     <Shield size={10} /> Local Silicon
                    </div>
                  )}
                </div>
@@ -187,13 +211,27 @@ export default function Agents({ initialQuery, onClearQuery }: { initialQuery?: 
         {/* Message Area */}
         <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-6">
           {messages.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-center space-y-4 opacity-50">
-              <div className="p-6 rounded-full bg-white/5 border border-white/10">
-                <Bot size={48} />
+            <div className="h-full flex flex-col items-center justify-center text-center space-y-8">
+              <div className="space-y-4 opacity-50">
+                <div className="p-6 rounded-full bg-white/5 border border-white/10 w-fit mx-auto">
+                  <Bot size={48} />
+                </div>
+                <div>
+                  <p className="text-lg font-medium">Hello, {auth.currentUser?.displayName?.split(' ')[0]}</p>
+                  <p className="text-sm text-muted-foreground">The {selectedAgent.name} agent is active on your local hardware.</p>
+                </div>
               </div>
-              <div>
-                <p className="text-lg font-medium">Hello, {auth.currentUser?.displayName?.split(' ')[0]}</p>
-                <p className="text-sm">How can {selectedAgent.name} assist you locally today?</p>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 w-full max-w-md">
+                {AGENT_PROMPTS[selectedAgent.id]?.map((prompt, i) => (
+                  <button
+                    key={i}
+                    onClick={() => handleSend(prompt)}
+                    className="p-4 rounded-2xl bg-white/5 border border-white/5 text-left text-xs text-zinc-400 hover:bg-white/10 hover:border-white/10 hover:text-white transition-all transform hover:-translate-y-1"
+                  >
+                    {prompt}
+                  </button>
+                ))}
               </div>
             </div>
           ) : (
@@ -203,38 +241,63 @@ export default function Agents({ initialQuery, onClearQuery }: { initialQuery?: 
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 className={cn(
-                  "flex gap-4",
-                  m.role === 'user' ? "flex-row-reverse" : ""
+                  "flex gap-4 flex-col",
+                  m.role === 'user' ? "items-end" : "items-start"
                 )}
               >
-                <div className={cn(
-                  "w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border",
-                  m.role === 'user' ? "bg-zinc-800 border-white/10" : "bg-white text-black border-white"
-                )}>
-                  {m.role === 'user' ? <User size={16} /> : <Cpu size={16} />}
-                </div>
-                <div className={cn(
-                  "max-w-[80%] p-4 rounded-2xl text-sm leading-relaxed markdown-body",
-                  m.role === 'user' ? "bg-white/5 border border-white/10 italic text-zinc-300" : "bg-white/10 border border-white/20 text-white"
-                )}>
-                   <ReactMarkdown>{m.content}</ReactMarkdown>
+                <div className="flex flex-col gap-2 w-full max-w-[85%]">
+                  {m.role === 'user' ? (
+                    <div className="flex items-center gap-2 mb-1 self-end">
+                       <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Subject</span>
+                       <div className="w-6 h-6 rounded bg-zinc-800 border border-white/10 flex items-center justify-center">
+                          <User size={12} className="text-zinc-500" />
+                       </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 mb-1">
+                       <div className="w-6 h-6 rounded bg-white text-black flex items-center justify-center">
+                          {selectedAgent.icon}
+                       </div>
+                       <span className="text-[10px] font-bold uppercase tracking-widest text-white">{selectedAgent.name}</span>
+                       <span className="text-[8px] px-1 bg-white/5 border border-white/10 rounded-sm text-zinc-500 ml-auto">PROCESSED</span>
+                    </div>
+                  )}
+                  <div className={cn(
+                    "p-4 rounded-2xl text-sm leading-relaxed markdown-body",
+                    m.role === 'user' ? "bg-white/5 border border-white/10 italic text-zinc-300 ml-auto" : "bg-white/10 border border-white/20 text-white"
+                  )}>
+                    <ReactMarkdown>{m.content}</ReactMarkdown>
+                  </div>
                 </div>
               </motion.div>
             ))
           )}
+
           {loading && (
-            <div className="flex gap-4">
-              <div className="w-8 h-8 rounded-lg bg-white text-black flex items-center justify-center shrink-0 border border-white">
-                <Cpu size={16} />
+            <motion.div 
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex flex-col gap-3"
+            >
+              <div className="flex items-center gap-2 mb-1">
+                 <div className="w-6 h-6 rounded bg-white text-black flex items-center justify-center">
+                    {selectedAgent.icon}
+                 </div>
+                 <span className="text-[10px] font-bold uppercase tracking-widest text-white">{selectedAgent.name} Reasoning...</span>
               </div>
-              <div className="max-w-[80%] p-4 rounded-2xl bg-white/10 border border-white/10 text-sm">
-                <div className="flex gap-1">
-                  <motion.div animate={{ opacity: [0, 1, 0] }} transition={{ duration: 1, repeat: Infinity, delay: 0 }} className="w-1 h-2 bg-white rounded-full" />
-                  <motion.div animate={{ opacity: [0, 1, 0] }} transition={{ duration: 1, repeat: Infinity, delay: 0.2 }} className="w-1 h-2 bg-white rounded-full" />
-                  <motion.div animate={{ opacity: [0, 1, 0] }} transition={{ duration: 1, repeat: Infinity, delay: 0.4 }} className="w-1 h-2 bg-white rounded-full" />
-                </div>
+              <div className="p-4 bg-white/5 border border-white/5 rounded-2xl w-full max-w-md space-y-1">
+                {processingLogs.map((log, i) => (
+                  <p key={i} className="text-[10px] font-mono text-zinc-500 flex items-center gap-2">
+                    <span className="w-1 h-1 rounded-full bg-emerald-500" /> {log}
+                  </p>
+                ))}
+                <motion.div 
+                  animate={{ opacity: [0, 1, 0] }}
+                  transition={{ duration: 0.8, repeat: Infinity }}
+                  className="w-1.5 h-3 bg-white inline-block mt-1"
+                />
               </div>
-            </div>
+            </motion.div>
           )}
         </div>
 

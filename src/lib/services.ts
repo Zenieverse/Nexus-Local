@@ -129,6 +129,7 @@ export const ChatService = {
   },
 
   async addMessage(conversationId: string, role: 'user' | 'assistant', content: string) {
+    if (!content) return;
     const path = `conversations/${conversationId}/messages`;
     try {
       // Update parent updatedAt

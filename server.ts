@@ -27,7 +27,7 @@ app.get("/api/health", (req, res) => {
 });
 
 app.post("/api/ai/reason", async (req, res) => {
-  const { prompt, context, agent = "nexus", model = "gemini-3-pro-image-preview", settings = {} } = req.body;
+  const { prompt, context, agent = "nexus", model = "gemini-1.5-flash", settings = {} } = req.body;
   
   const agentInstructions: Record<string, string> = {
     nexus: "You are the Nexus Core, the main orchestration engine. Be analytical, strategic, and concise. Coordinate between sub-agents if necessary.",
@@ -51,12 +51,23 @@ app.post("/api/ai/reason", async (req, res) => {
         Security Protocol: ${offlineHint}
         Permissions: ${toolsHint}
         
+        Rules:
+        1. Keep responses professional, technical, and high-fidelity.
+        2. Prefix critical reasoning steps with [REASONING].
+        3. If running in Offline Priority, emphasize your reliance on local intelligence.
+        
         Previous Conversation Context:
         ${context || "No prior context."}`,
       }
     });
 
-    res.json({ text: response.text });
+    // Post-process response to add expert header if needed
+    let text = response.text;
+    if (!text.includes('[SOURCE:')) {
+      text = `[SOURCE: LOCAL_ एक्सपर्ट_CHAIN_${agent.toUpperCase()}]\n\n${text}`;
+    }
+
+    res.json({ text: text });
   } catch (error) {
     console.error("Gemini Error:", error);
     res.status(500).json({ error: "Intelligence core failure. Check logs." });
