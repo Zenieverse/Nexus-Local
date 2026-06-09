@@ -8,6 +8,8 @@ This contains everything you need to run your app locally.
 
 View your app in AI Studio: https://ai.studio/apps/38e72804-152d-4dff-8763-2af6345aa72b
 
+or https://nexus-local-764082783379.us-west1.run.app
+
 ## Run Locally
 
 **Prerequisites:**  Node.js
